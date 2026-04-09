@@ -4,7 +4,6 @@
 #include <cmath>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 static const double DEFAULT_PRUNING_LOG_ODDS_THRESHOLD = 0.0;          // log10ToLog(1.0)
 static const double DEFAULT_PRUNING_SEEDING_LOG_ODDS_THRESHOLD = 0.0;  // log10ToLog(4.0)

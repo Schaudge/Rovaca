@@ -1,9 +1,8 @@
 #include "RegionManager.h"
-
 #include "rovaca_logger.h"
 
 const int LITTLE_CHROM_SIZE = 500000;
-const double LITTLE_CHROM_FACTOR = 1 / 32;
+const double LITTLE_CHROM_FACTOR = 1 / 16;
 const double GVCF_BUFFER_THRES_FACTOR = 1 / 4;
 const double VCF_BUFFER_THRES_FACTOR = 1 / 2;
 const int EXTRA_FACTOR = 16;
@@ -32,14 +31,14 @@ void RegionManager::poll(bool force)
         if ((region = engine->poll()) == nullptr) {
             int extension_current_tid = engine->get_record_stauts().extension_current_tid;
             while (result.size() == 0 && last_tid < extension_current_tid) {
-                RovacaLogger::info("region tid {} finished", last_tid);
+                RovacaLogger::info("All regions for tid {} are processed.", last_tid);
                 m_fasta_loader->pop();
                 last_tid++;
             }
             break;
         }
         while (last_tid < region->tid) {
-            RovacaLogger::info("region tid {} finished", last_tid);
+            RovacaLogger::info("All regions for tid {} are processed.", last_tid);
             m_fasta_loader->pop();
             last_tid++;
         }
@@ -117,7 +116,7 @@ void RegionManager::flush(bool force)
         // RovacaLogger::info("here {}-{}", last_tid, interval_tid);
         if (last_tid != interval_tid) poll(true);
         for (; last_tid < interval_tid; last_tid++) {
-            RovacaLogger::info("flush region tid {} finished", last_tid);
+            RovacaLogger::info("All regions for tid {} are processed.", last_tid);
             m_fasta_loader->pop();
         }
     }
@@ -187,18 +186,11 @@ void RegionManager::calculate_db(std::shared_ptr<RegionSource>& source)
 {
     if (__glibc_unlikely(db_tid_ != source->tid_)) {
         db_offset_ = 0;
-        db_->notify(db_tid_);
+        // db_->notify(db_tid_);
         db_tid_ = source->tid_;
     }
 
     // 此函数可能阻塞
-    source->db_data_ = db_->get(source->tid_);
-
-    int32_t tid_data_len = static_cast<int32_t>(source->db_data_->size());
-    for (; db_offset_ < tid_data_len; ++db_offset_) {
-        if (source->db_data_->at(db_offset_)->pos >= result.front().region->start_index) {
-            source->db_offset_ = db_offset_;
-            break;
-        }
-    }
+    source->db_data_ = db_->get(source->regions_);
+    source->db_offset_ = 0;
 }

@@ -8,6 +8,8 @@
 #include "htslib/vcf.h"
 #include "utils/bam_data_pool.hpp"
 
+class DbsnpManager;
+
 struct RegionResource
 {
     RegionResource(){};
@@ -15,6 +17,7 @@ struct RegionResource
         : id_(resource_id)
         , buffer_size_(buffer_size)
         , result_buffer_size_(consumer_result_size)
+        , db_manager(nullptr)
     {
         pool_ = new rovaca::BamDataPool(pool_size);
         buffer_ = new uint8_t[buffer_size]{};
@@ -23,12 +26,7 @@ struct RegionResource
 
     void finalize() { pool_->finalize(); }
 
-    ~RegionResource()
-    {
-        delete pool_;
-        delete[] buffer_;
-        delete[] assemble_result_buffer_;
-    }
+    ~RegionResource();
     rovaca::BamDataPool *pool_;
     uint8_t *assemble_result_buffer_;
     uint8_t *buffer_;  // 用于内存池，消费者多个模块内部去构建memory_resource对象，memory_resource对象周期只在对应模块
@@ -36,6 +34,7 @@ struct RegionResource
     int id_;
     int buffer_size_;
     size_t result_buffer_size_;
+    DbsnpManager *db_manager;
 };
 
 struct RegionResult

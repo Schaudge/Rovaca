@@ -49,7 +49,7 @@ TEST_F(TestActiveMainThreadLogic, bedtest1)
 {
     BedLoader *bed_loader =
         new BedLoader(std::string("/home/yinlonghui/workspace/hc/src/haplotypecaller/ActiveRegion/test/Resource/a.bed"), 0, *fasta_info);
-    ActiveMainThreadDispatchTasks inst(nullptr, bed_loader, m_fasta_loader, fasta_info, nullptr, nullptr, nullptr, nullptr, nullptr);
+    ActiveMainThreadDispatchTasks inst(nullptr, bed_loader, m_fasta_loader, fasta_info, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 
     boost::dynamic_bitset<> *_bit = new boost::dynamic_bitset<>(1024, 0x0);
     int max = 1024;
@@ -97,7 +97,7 @@ TEST_F(TestActiveMainThreadLogic, bedtest1)
 TEST_F(TestActiveMainThreadLogic, split_long_reads_case1)
 {
     ActiveRegionBamBlockListSource resource(10);
-    ActiveMainThreadDispatchTasks inst(nullptr, nullptr, m_fasta_loader, fasta_info, &resource, nullptr, nullptr, nullptr, nullptr);
+    ActiveMainThreadDispatchTasks inst(nullptr, nullptr, m_fasta_loader, fasta_info, &resource, nullptr, nullptr, nullptr, nullptr, nullptr);
     const char sam[] =
         "data:,"
         "@SQ\tSN:chr1\tLN:249250621\n"
@@ -157,7 +157,7 @@ TEST_F(TestActiveMainThreadLogic, split_long_reads_case1)
 TEST_F(TestActiveMainThreadLogic, split_long_reads_case2)
 {
     ActiveRegionBamBlockListSource resource(10);
-    ActiveMainThreadDispatchTasks inst(nullptr, nullptr, m_fasta_loader, fasta_info, &resource, nullptr, nullptr, nullptr, nullptr);
+    ActiveMainThreadDispatchTasks inst(nullptr, nullptr, m_fasta_loader, fasta_info, &resource, nullptr, nullptr, nullptr, nullptr, nullptr);
     const char sam[] =
         "data:,"
         "@SQ\tSN:chr1\tLN:249250621\n"
@@ -222,7 +222,7 @@ TEST_F(TestActiveMainThreadLogic, split_long_reads_case2)
 TEST_F(TestActiveMainThreadLogic, split_long_reads_case3)
 {
     ActiveRegionBamBlockListSource resource(10);
-    ActiveMainThreadDispatchTasks inst(nullptr, nullptr, m_fasta_loader, fasta_info, &resource, nullptr, nullptr, nullptr, nullptr);
+    ActiveMainThreadDispatchTasks inst(nullptr, nullptr, m_fasta_loader, fasta_info, &resource, nullptr, nullptr, nullptr, nullptr, nullptr);
     const char sam[] =
         "data:,"
         "@SQ\tSN:chr1\tLN:249250621\n"
@@ -302,7 +302,7 @@ TEST_F(TestActiveMainThreadLogic, get_region_reads_block_case1)
     ActiveRegionBamBlockListSource resource(10);
     rovaca::BamDataPool pool(1024);
 
-    ActiveMainThreadReduce inst(nullptr, nullptr, nullptr, nullptr, nullptr, &resource, nullptr, nullptr, true);
+    ActiveMainThreadReduce inst(nullptr, nullptr, nullptr, nullptr, nullptr, &resource, nullptr, nullptr, true, nullptr);
     const char sam[] =
         "data:,"
         "@SQ\tSN:chr1\tLN:249250621\n"
@@ -358,7 +358,7 @@ TEST_F(TestActiveMainThreadLogic, remove_non_overlapping_reads_region_long_case1
     ActiveRegionBamBlockListSource resource(10);
     rovaca::BamDataPool pool(1024);
 
-    ActiveMainThreadReduce inst(nullptr, nullptr, nullptr, nullptr, nullptr, &resource, nullptr, nullptr, true);
+    ActiveMainThreadReduce inst(nullptr, nullptr, nullptr, nullptr, nullptr, &resource, nullptr, nullptr, true, nullptr);
     const char sam[] =
         "data:,"
         "@SQ\tSN:chr1\tLN:249250621\n"

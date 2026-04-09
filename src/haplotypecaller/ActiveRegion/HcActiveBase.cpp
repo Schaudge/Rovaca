@@ -252,17 +252,19 @@ void HcActiveBase::compute_genotype_PL(int offset)
     HCHistStorage& hist_inst = m_ringbuffer_hist.get_hist_inst(get_acutal_start() + offset);
     int read_counts = 0;
     for (int i = 1; i >= 0; i--) {
-        uint8_t min_qual = hist_inst.min_idx[i] > HC_REGION_MIN_BASE_QUAL + 1 ? hist_inst.min_idx[i] : HC_REGION_MIN_BASE_QUAL + 1;
-        uint8_t max_qual = hist_inst.max_idx[i];
+        int min_qual = hist_inst.min_idx[i] > HC_REGION_MIN_BASE_QUAL + 1 ? hist_inst.min_idx[i] : HC_REGION_MIN_BASE_QUAL + 1;
+        int max_qual = std::min((int)hist_inst.max_idx[i], HCBASEMAXQUAL - 1);
         // bool is_alt = i == HCActiveBaseStatus::VariantIDX;
         HCActiveBaseStatus status = static_cast<HCActiveBaseStatus>(i);
-        for (uint8_t qual = min_qual; qual <= max_qual; qual++) {
+        for (int qual = min_qual; qual <= max_qual; qual++) {
             const int count = hist_inst.hist_count[i][qual];
             if (count == 0) continue;
             likelihood_and_count(qual, status, count);
             read_counts += count;
             hist_inst.hist_count[i][qual] = 0;
         }
+        hist_inst.max_idx[i] = HCBASEMIXQUAL;
+        hist_inst.min_idx[i] = HCBASEMAXQUAL;
     }
     double denominator = read_counts * m_log10_ploidy;
 

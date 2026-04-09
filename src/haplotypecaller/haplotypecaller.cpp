@@ -1,5 +1,3 @@
-#include "haplotypecaller.h"
-
 #include <iostream>
 #include <memory>
 #include <string>
@@ -10,6 +8,7 @@
 #include "common/enum.h"
 #include "dbsnp_manager.h"
 #include "downsampler_hc.h"
+#include "haplotypecaller.h"
 #include "pairhmm/pairhmm_engine.h"
 #include "reads_filter_hc.h"
 #include "reference_manager.h"
@@ -29,6 +28,7 @@ HaplotypeCaller::HaplotypeCaller()
     : hc_args(nullptr)
     , hc_engine(nullptr)
     , assemble_output_thread_(nullptr)
+    , apply_bqsr_(nullptr)
     , debug_assemble_stream_(false)
 {}
 
@@ -67,10 +67,11 @@ void HaplotypeCaller::do_work()
     }
 
     DbsnpManager db_manager{};
-    if (has_db) {
-        db_manager.initialization(rovaca_args_->dbsnp_path(), bed_loader_.get(), &fasta_manager_inst.get_contig(), stream_pool_.get(), 10);
-        RovacaLogger::info("Apply DBSNP");
-    }
+    // if (has_db) {
+    //     db_manager.initialization(rovaca_args_->dbsnp_path(), bed_loader_.get(), &fasta_manager_inst.get_contig(), stream_pool_.get(),
+    //                               rovaca_args_->dbsnp_prefetch_size());
+    //     RovacaLogger::info("Apply DBSNP");
+    // }
 
     BlockingQueue<std::shared_ptr<ActiveBaseResource>> *base_resource = new BlockingQueue<std::shared_ptr<ActiveBaseResource>>(n_resource);
     BlockingQueue<BaseSource> *base_source = new BlockingQueue<BaseSource>(n_resource);
@@ -91,14 +92,21 @@ void HaplotypeCaller::do_work()
         for (int i = 0; i < n_resource; i++) {
             std::shared_ptr<RegionResource> region_resource = std::make_shared<RegionResource>(
                 i, wes_ ? k_wes_bamdata_pool_mem : k_wgs_bamdata_pool_mem, k_reads_buffer_mem, k_target_mem);
+
+            if (has_db) {
+                region_resource->db_manager = new DbsnpManager();
+                region_resource->db_manager->initialization(rovaca_args_->dbsnp_path(), bed_loader_.get(), &fasta_manager_inst.get_contig(),
+                                                            stream_pool_.get(), rovaca_args_->dbsnp_prefetch_size());
+                RovacaLogger::info("Apply DBSNP");
+            }
             region_source->push(region_resource);
         }
     });
     boost::asio::thread_pool run_pool(n_threads);
     std::thread *bqsr_executor = nullptr;
     std::thread *bqsr_reducer = nullptr;
-    BlockingQueue<std::shared_ptr<TransformTask>> *bqsr_task_queue = new BlockingQueue<std::shared_ptr<TransformTask>>(512);
-    ReducedQueue *bqsr_processed_reads = new ReducedQueue();
+    BlockingQueue<std::shared_ptr<TransformTask>> *bqsr_task_queue = apply_transformer_ ? new BlockingQueue<std::shared_ptr<TransformTask>>(512) : nullptr;
+    ReducedQueue *bqsr_processed_reads = apply_transformer_ ? new ReducedQueue() : nullptr;
     ReadStream *bqsr_streamer = nullptr;
 
     if (apply_transformer_) {
@@ -112,15 +120,9 @@ void HaplotypeCaller::do_work()
                                                         &block_resource, &run_pool, base_resource, base_source, m_bam_resource,
                                                         apply_bqsr_);
     ActiveMainThreadReduce main_reduce_process(&fasta_manager_inst, &fasta_manager_inst.get_contig(), bed_loader_.get(), region_source,
-                                               base_resource, &block_resource, base_source, region_queue, force,
-                                               has_db ? &db_manager : nullptr);
+                                               base_resource, &block_resource, base_source, region_queue, force, nullptr);
     std::thread thread_dispatch(&ActiveMainThreadDispatchTasks::run, &main_dispatch_process);
     std::thread thread_reduce(&ActiveMainThreadReduce::run, &main_reduce_process);
-
-    std::unique_ptr<std::thread> db_process;
-    if (has_db) {
-        db_process = std::make_unique<std::thread>(&DbsnpManager::run, &db_manager);
-    }
 
     bool index = rovaca_args_->create_output_index();
     int32_t compression_level = rovaca_args_->compression_level();
@@ -137,9 +139,6 @@ void HaplotypeCaller::do_work()
     pthread_setname_np(thread_dispatch.native_handle(), "RegionDispatch");
     pthread_setname_np(thread_reduce.native_handle(), "RegionReduce");
     pthread_setname_np(thread_consumer.native_handle(), "CallRegion");
-    if (has_db) {
-        pthread_setname_np(db_process->native_handle(), "DBSNP");
-    }
     if (apply_transformer_) {
         pthread_setname_np(bqsr_executor->native_handle(), "BQSRLaunch");
         pthread_setname_np(bqsr_reducer->native_handle(), "BQSRReduce");
@@ -150,13 +149,10 @@ void HaplotypeCaller::do_work()
         bqsr_reducer->join();
     }
 
-    fasta_process.join();
-    if (has_db) {
-        db_process->join();
-    }
     thread_dispatch.join();
     thread_reduce.join();
     thread_consumer.join();
+    fasta_process.join();
     resource_thread.join();
     run_pool.join();
     writer_->stop();
@@ -169,6 +165,7 @@ void HaplotypeCaller::do_work()
     delete base_source;
     delete region_source;
     delete region_queue;
+    delete m_bam_resource;
     delete result_queue;
     if (apply_transformer_) {
         delete apply_bqsr_;
@@ -213,6 +210,7 @@ void HaplotypeCaller::init_args()
     genotype_args->command_line = rovaca_args_->command_line();
     genotype_args->gvcf_gq_bands = hc_args->GQBands_;
     genotype_args->init_reference_confidence_mode(hc_args->referenceConfidenceMode);
+    genotype_args->writetmp = rovaca_args_->writetmp();
 
     if (hc_args->referenceConfidenceMode == ReferenceConfidenceMode::GVCF) {
         std::string gvcf_gq_bands;

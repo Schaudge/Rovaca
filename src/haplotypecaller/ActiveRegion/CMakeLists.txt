@@ -1,5 +1,5 @@
 set(PACK_NAME region)
-set(PACK_SRC ActiveMainThread.cpp ActiveBase.cpp HcActiveBase.cpp reference_manager.cpp ActiveRegionEngine.cpp RegionManager.cpp dbsnp_manager.cpp)
+set(PACK_SRC ActiveMainThread.cpp ActiveBase.cpp HcActiveBase.cpp reference_manager.cpp ActiveRegionEngine.cpp RegionManager.cpp dbsnp_manager.cpp ../common/region_interface.cpp)
 set(PACK_INCLUDE_DIR ${HTSLIB_INCLUDE_DIR} ../common ../common/assemble ../common/utils/ ../common/base/include ../../interface
                      ../../common ../../IOStream ${Boost_INCLUDE_DIRS} ${SPDLOG_INCLUDE_DIR} ../../rovaca_logger ../bqsr)
 set(PACK_LINK_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})

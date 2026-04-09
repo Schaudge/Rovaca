@@ -1,17 +1,23 @@
-#include "dbsnp_manager.h"
-
 #include <algorithm>
 
+#include "../common/region_interface.h"
 #include "bed_loader.h"
+#include "dbsnp_manager.h"
 #include "rovaca_logger.h"
 
-void DbsnpManager::initialization(const std::string& vcf_file, BedLoader* bl, contig_info_t* ci, htsThreadPool* tp, int32_t prefetch)
+void DbsnpManager::initialization(const std::string &vcf_file, BedLoader *bl, contig_info_t *ci, htsThreadPool *tp, int32_t prefetch,
+                                  DbsnpManagerType type)
 {
     bed_loader_ = bl;
     contig_info_ = ci;
+    type_ = type;
 
-    prefetch_num_ = prefetch;
-
+    if (type_ == DbsnpManagerType::PREFETCH) {
+        prefetch_num_ = prefetch;
+    }
+    else {
+        prefetch_num_ = 0;
+    }
     vcf_loader_.initialization(vcf_file, tp, ci);
 }
 
@@ -19,51 +25,54 @@ void DbsnpManager::terminalization() { vcf_loader_.terminalization(); }
 
 void DbsnpManager::run()
 {
-    RovacaLogger::info("start reading dbsnp file");
-    p_bed_intervals bi;
-    int32_t len = static_cast<int32_t>(contig_info_->key.size());
+    if (type_ == DbsnpManagerType::PREFETCH) {
+        RovacaLogger::info("start reading dbsnp file");
+        p_bed_intervals bi;
+        int32_t len = static_cast<int32_t>(contig_info_->key.size());
 
-    for (int32_t id{0}; id < len; ++id) {
-        {
-            // 缩小上锁范围
-            std::unique_lock<std::mutex> lock{mutex_};
-            while (undo_num_ == prefetch_num_ && !finish_) {
-                not_full_.wait(lock);
+        for (int32_t id{0}; id < len; ++id) {
+            {
+                // 缩小上锁范围
+                std::unique_lock<std::mutex> lock{mutex_};
+                while (undo_num_ == prefetch_num_ && !finish_) {
+                    not_full_.wait(lock);
+                }
             }
-        }
 
-        if (finish_) {
-            break;
-        }
+            if (finish_) {
+                break;
+            }
 
-        // bed中没有此chr，构造一个空数据
-        if (bed_loader_ && !bed_loader_->get_bed_intervals().count(contig_info_->key[id])) {
-            std::shared_ptr<std::vector<bcf1_t*>> data{new std::vector<bcf1_t*>{}};
+            // bed中没有此chr，构造一个空数据
+            if (bed_loader_ && !bed_loader_->get_bed_intervals().count(contig_info_->key[id])) {
+                std::shared_ptr<std::vector<bcf1_t *>> data{new std::vector<bcf1_t *>{}};
+                std::unique_lock<std::mutex> lock{mutex_};
+                ++undo_num_;
+                vcf_.insert({id, data});
+                has_data_.notify_one();
+
+                continue;
+            }
+
+            // 自定义删除器，回收 bcf1_t
+            bi = bed_loader_ ? bed_loader_->get_bed_intervals().at(contig_info_->key[id]) : nullptr;
+            std::vector<bcf1_t *> result = vcf_loader_.load_vcf(contig_info_->key.at(id).c_str(), bi);
+            std::shared_ptr<std::vector<bcf1_t *>> data{new std::vector<bcf1_t *>{std::move(result)}, [&](const std::vector<bcf1_t *> *d) {
+                                                            std::for_each(d->begin(), d->end(),
+                                                                          [&](bcf1_t *b) { vcf_loader_.recover_bcf(b); });
+                                                        }};
+
             std::unique_lock<std::mutex> lock{mutex_};
             ++undo_num_;
             vcf_.insert({id, data});
             has_data_.notify_one();
-
-            continue;
         }
 
-        // 自定义删除器，回收 bcf1_t
-        bi = bed_loader_ ? bed_loader_->get_bed_intervals().at(contig_info_->key[id]) : nullptr;
-        std::vector<bcf1_t*> result = vcf_loader_.load_vcf(contig_info_->key.at(id).c_str(), bi);
-        std::shared_ptr<std::vector<bcf1_t*>> data{new std::vector<bcf1_t*>{std::move(result)}, [&](const std::vector<bcf1_t*>* d) {
-                                                       std::for_each(d->begin(), d->end(), [&](bcf1_t* b) { vcf_loader_.recover_bcf(b); });
-                                                   }};
-
-        std::unique_lock<std::mutex> lock{mutex_};
-        ++undo_num_;
-        vcf_.insert({id, data});
-        has_data_.notify_one();
+        RovacaLogger::info("end reading dbsnp file");
     }
-
-    RovacaLogger::info("end reading dbsnp file");
 }
 
-std::shared_ptr<std::vector<bcf1_t*>> DbsnpManager::get(int32_t tid)
+std::shared_ptr<std::vector<bcf1_t *>> DbsnpManager::get(int32_t tid)
 {
     if (!vcf_.count(tid)) {
         std::unique_lock<std::mutex> lock{mutex_};
@@ -73,6 +82,61 @@ std::shared_ptr<std::vector<bcf1_t*>> DbsnpManager::get(int32_t tid)
     }
 
     return vcf_.at(tid);
+}
+
+std::shared_ptr<std::vector<bcf1_t *>> DbsnpManager::get(const std::vector<RegionResult> &result)
+{
+    if (result.empty()) {
+        return {};
+    }
+
+    int num = 0;
+    // 合并所有激活区间的activeSpan到一个p_bed_intervals
+    for (const auto &region : result) {
+        if (region.region->active) {
+            num++;
+        }
+    }
+    if (num == 0) {
+        return {};
+    }
+    // 获取第一个region的tid和chr_name
+    int32_t tid = result[0].region->tid;
+    const char *chr_name = contig_info_->key[tid].c_str();
+
+    p_bed_intervals bi = (p_bed_intervals)calloc(1, sizeof(bed_intervals));
+    bi->n = num;
+    bi->m = num;
+    bi->start = (hts_pos_t *)malloc(num * sizeof(hts_pos_t));
+    bi->end = (hts_pos_t *)malloc(num * sizeof(hts_pos_t));
+    int j = 0;
+    for (size_t i = 0; i < result.size(); i++) {
+        if (result[i].region->active) {
+            bi->start[j] = result[i].region->start_index;
+            bi->end[j] = result[i].region->end_index;
+            j++;
+        }
+    }
+    if (j != num) {
+        RovacaLogger::info("error: {}, {}", j, num);
+    }
+
+    // 只调用一次vcf_loader_.load_vcf
+    std::vector<bcf1_t *> vcf_result = vcf_loader_.load_vcf(chr_name, bi);
+
+    // 创建shared_ptr包装结果
+    std::shared_ptr<std::vector<bcf1_t *>> data{new std::vector<bcf1_t *>{std::move(vcf_result)}, [&](const std::vector<bcf1_t *> *d) {
+                                                    std::for_each(d->begin(), d->end(), [&](bcf1_t *b) { bcf_destroy(b); });
+                                                }};
+
+    // 返回包含所有激活区间dbsnp数据的向量（每个激活区间对应一个相同的dbsnp数据）
+
+    // 释放bed_intervals内存
+    if (bi->start) free(bi->start);
+    if (bi->end) free(bi->end);
+    free(bi);
+
+    return data;
 }
 
 void DbsnpManager::notify(int32_t tid)

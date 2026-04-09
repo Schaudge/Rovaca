@@ -121,7 +121,10 @@ bool ReadFilterLib::has_read_group(bam1_t* read)
  * @return true
  * @return false
  */
-bool ReadFilterLib::matching_base_and_qual(bam1_t* read) { return bam_get_qual(read) != nullptr; }
+bool ReadFilterLib::matching_base_and_qual(bam1_t* read)
+{
+    return read->core.l_qseq == 0 || bam_get_qual(read)[0] != 0xff; ;
+}
 
 /**
  * @brief 判断read长度是否等于cigar长度.

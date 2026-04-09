@@ -1,4 +1,5 @@
 #include "bqsr_read_covarivates.h"
+#include <stdexcept>
 
 static int simple_base_to_base_index(uint8_t base) { return g_bqsr_seq_table[base]; }
 

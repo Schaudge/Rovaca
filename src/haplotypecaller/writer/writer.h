@@ -34,6 +34,8 @@ typedef struct WriterTask
     size_t del_line_offset;
     int64_t next_available_start;
     std::shared_ptr<char> ref;
+    size_t word_number;
+    bool save_file;
 } WriterTask, *pWriterTask;
 
 struct OutputFile
@@ -55,6 +57,7 @@ private:
     bam_hdr_t* bam_hdr_;
     htsThreadPool* hts_pool_;
     BlockingQueue<pWriterTask>* result_queue_;
+    bool writetmp_;
 
     OutputFile out_;
     int32_t last_id_back_;

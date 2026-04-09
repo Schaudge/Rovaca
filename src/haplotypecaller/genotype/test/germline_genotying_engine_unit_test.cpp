@@ -239,8 +239,8 @@ TEST_F(GermlineGenotyingEngineUnitTest, GvcfModeTest)
     auto task_start = std::chrono::high_resolution_clock::now();
     args->init_reference_confidence_mode(ReferenceConfidenceMode::GVCF);
     bool is_gvcf = args->reference_confidence_mode == ReferenceConfidenceMode::GVCF;
-    args->tool_name = "LUSHVariantCaller";
-    args->command_line = "LUSHVariantCaller haha haha";
+    args->tool_name = "ROVACAVariantCaller";
+    args->command_line = "ROVACAVariantCaller haha haha";
     for (int32_t i = 1; i <= 60; ++i) {
         args->gvcf_gq_bands.push_back(i);
     }
@@ -362,8 +362,8 @@ TEST_F(GermlineGenotyingEngineUnitTest, VcfModeTest)
 
     args->init_reference_confidence_mode(ReferenceConfidenceMode::NONE);
     bool is_gvcf = args->reference_confidence_mode == ReferenceConfidenceMode::GVCF;
-    args->tool_name = "LUSHVariantCaller";
-    args->command_line = "LUSHVariantCaller haha haha";
+    args->tool_name = "ROVACAVariantCaller";
+    args->command_line = "ROVACAVariantCaller haha haha";
 
     GermlineGenotyingEngine engine{};
 

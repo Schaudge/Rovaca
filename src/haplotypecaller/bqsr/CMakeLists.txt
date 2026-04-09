@@ -25,7 +25,7 @@ target_include_directories(
     ../../rovaca_logger
     ../common/utils/
     ${Boost_INCLUDE_DIRS}
-    ${HTSLIB_INCLUDE_DIR}
-    ${SPDLOG_INCLUDE_DIR})
+    ${SPDLOG_INCLUDE_DIR}
+    ${HTSLIB_INCLUDE_DIR})
     
     install(TARGETS ${PackName} LIBRARY DESTINATION lib ARCHIVE DESTINATION lib RUNTIME DESTINATION bin)

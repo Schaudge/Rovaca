@@ -107,7 +107,7 @@ RovacaTool::~RovacaTool()
     bam_loader_.reset();
     filter_.reset();
     hts_tpool_destroy(stream_pool_->pool);
-    RovacaLogger::info("Rovaca-{} finished", rovaca_args_->tool());
+    RovacaLogger::info("Rovaca-{} completed.", rovaca_args_->tool());
 }
 
 bool RovacaTool::initialize_args(int argc, char *argv[])

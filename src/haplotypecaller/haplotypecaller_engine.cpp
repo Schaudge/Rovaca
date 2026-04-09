@@ -1,5 +1,3 @@
-#include "haplotypecaller_engine.h"
-
 #include <algorithm>
 #include <boost/asio.hpp>
 #include <cstdio>
@@ -22,8 +20,10 @@
 #include "genotype/utils/assembly_based_caller_utils.h"
 #include "genotype/utils/debug_utils.h"
 #include "genotype/variant.h"
+#include "haplotypecaller_engine.h"
 #include "rovaca_logger.h"
 #include "pairhmm/pairhmm_engine.h"
+#include "ActiveRegion/dbsnp_manager.h"
 
 static constexpr int k_region_padding = 100;
 static constexpr int k_reference_padding = 500;
@@ -127,6 +127,10 @@ void HaplotypeCallerEngine::call_region()
             pGermlineGenotyingEngine genotype_engine = genotype_engine_pool_->pop();
             if (nullptr == genotype_engine) genotype_engine = new GermlineGenotyingEngine{};
             genotype_engine->clear_upstream_deletions_loc();
+            if (resource->db_manager) {
+                source->db_data_ = resource->db_manager->get(source->regions_);
+                source->db_offset_ = 0;
+            }
             genotype_engine->set_dbsnp(source->db_offset_, source->db_data_.get());
 
             p_lib_sw_avx sw = genotype_engine->sw();

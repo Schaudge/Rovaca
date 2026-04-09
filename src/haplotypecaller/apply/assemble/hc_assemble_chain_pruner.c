@@ -5,7 +5,7 @@
  * @version 0.1
  * @date 2022-04-22
  *
- * @copyright Copyright (c) 2022 ROVACA SDK
+ * @copyright Copyright (c) 2022 Rovaca SDK
  *
  */
 #include "graph.h"

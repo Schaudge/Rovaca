@@ -5,7 +5,7 @@
  * @version 0.1
  * @date 2021-05-18
  *
- * @copyright Copyright (c) 2021 ROVACA SDK
+ * @copyright Copyright (c) 2021 Rovaca SDK
  *
  */
 #include "hc_assemble_main.h"

@@ -13,8 +13,8 @@
 #include "downsampler_hc.h"
 #include "fasta_loader.h"
 #include "reads_filter_hc.h"
-#include "reads_stream_builder.h"
 #include "reference_manager.h"
+#include "reads_stream.h"
 
 int usage()
 {
@@ -90,13 +90,13 @@ int main(int argc, char *argv[])
     tpool.pool = hts_tpool_init(bedfilename.empty() ? 4 : 10);
     BamLoader bam_info{bam_filename.c_str(), &tpool, !bedfilename.empty()};
     ReadFilter *reads_filter = new HCReadFilter(bam_info.get_sam_hdr()[0], false);
-    ReadStreamBuilder builder(&bam_info);
+    std::unique_ptr<ReadStream> reads = std::make_unique<ReadStream>(&bam_info);
     ActiveRegionBamBlockListSource block_resource(10);
     Downsampler *reads_downsampler = nullptr;
     if (max_reads_per_alignment_start != 0) {
         reads_downsampler = new HCDownsampler(max_reads_per_alignment_start);
     }
-    ReadStream reads = builder.set_filter(reads_filter);
+    reads.reset(new ReadsFilterIterator(reads.release(), reads_filter));
 
     if (bedfilename.empty()) {
         // bam_info.set_target("chr1:535879-535989");
@@ -108,7 +108,6 @@ int main(int argc, char *argv[])
         bam_info.set_target(bed_loader->get_all_intervals());
     }
 
-    reads.init_reads_streamr();
 
     BlockingQueue<std::shared_ptr<ActiveBaseResource>> *base_resource = new BlockingQueue<std::shared_ptr<ActiveBaseResource>>(n_resource);
 
@@ -135,13 +134,13 @@ int main(int argc, char *argv[])
 
     std::thread fasta_process(&ReferenceManager::run, &fasta_manager_inst);
 
-    ActiveMainThreadDispatchTasks main_dispatch_process(&reads, bed_loader, &fasta_manager_inst, &fasta_manager_inst.get_contig(),
-                                                        &block_resource, &thread_pool, base_resource, base_source, m_bam_resource);
+    ActiveMainThreadDispatchTasks main_dispatch_process(reads.get(), bed_loader, &fasta_manager_inst, &fasta_manager_inst.get_contig(),
+                                                        &block_resource, &thread_pool, base_resource, base_source, m_bam_resource, nullptr);
 
     FakeConsumer fake_process(region_source, region_queue, outfilename, bam_info.get_sam_hdr()[0], &fasta_manager_inst);
 
     ActiveMainThreadReduce main_reduce_process(&fasta_manager_inst, &fasta_manager_inst.get_contig(), bed_loader, region_source,
-                                               base_resource, &block_resource, base_source, region_queue, force);
+                                               base_resource, &block_resource, base_source, region_queue, force, nullptr);
 
     std::thread thread_dispatch(&ActiveMainThreadDispatchTasks::run, &main_dispatch_process);
 

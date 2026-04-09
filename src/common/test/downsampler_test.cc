@@ -123,14 +123,14 @@ TEST_F(HcDownsamperTest, TestConsumeFinalizedItems)
     bam1_t* item2 = CreateOneMappedRead(0, 200);
     downsampler->submit(item2);
     downsampler->input_end_signal();
-    std::vector<bam1_t*> finalized_items;
+    std::list<bam1_t*> finalized_items;
     downsampler->consume_finalized_items(finalized_items);
     EXPECT_EQ(finalized_items.size(), 2);
-    EXPECT_EQ(finalized_items[0]->core.pos, 100);
-    EXPECT_EQ(finalized_items[1]->core.pos, 200);
+    EXPECT_EQ(finalized_items.front()->core.pos, 100);
+    EXPECT_EQ(finalized_items.back()->core.pos, 200);
     for (auto item : finalized_items) {
         bam_destroy1(item);
-    }
+    }   
 }
 
 TEST_F(HcDownsamperTest, TestHandlePositionalChange)
@@ -140,7 +140,7 @@ TEST_F(HcDownsamperTest, TestHandlePositionalChange)
 
     bam1_t* item2 = CreateOneMappedRead(0, 200);
     downsampler->submit(item2);
-    std::vector<bam1_t*> finalized_items;
+    std::list<bam1_t*> finalized_items;
     downsampler->consume_finalized_items(finalized_items);
     EXPECT_EQ(finalized_items.size(), 1);
     for (auto item : finalized_items) {

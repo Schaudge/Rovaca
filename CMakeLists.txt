@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(rovaca VERSION 1.0.0) # Change version number here when releasing
+project(rovaca VERSION 1.1.0) # 发版时在此更改版本号
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.27")
     cmake_policy(SET CMP0003 NEW)
     cmake_policy(SET CMP0144 NEW)
@@ -14,22 +14,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-if(DEFINED LIBDEFLATE_PATH)
-    message(STATUS "Using custom libdeflate path")
-    link_directories(${CMAKE_SOURCE_DIR})
-    find_library(LIBDEFLATE libdeflate.so.0
-                PATHS ${CMAKE_SOURCE_DIR}
-                NO_DEFAULT_PATH)
-else()
-    message(STATUS "Using system libdeflate path")
-    find_library(LIBDEFLATE libdeflate.so.0 
-                PATHS /usr/local/lib)
-endif()
-
-if(NOT LIBDEFLATE)
-    message(FATAL_ERROR "libdeflate not found")
-endif()
 
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
@@ -49,11 +33,8 @@ else()
     set(CMAKE_CXX_FLAGS "-Wall -Wextra -O3  -g -fPIC")
 endif()
 
-# set(MIN_BOOST_VERSION 1.69)
-# find_package(Boost ${MIN_BOOST_VERSION} REQUIRED)
-# if(Boost_FOUND)
-#     message(STATUS "* * * * * * * * * * * boost version: ${Boost_LIB_VERSION} * * * * * * * * * * *")
-# endif()
+set(MIN_BOOST_VERSION 1.69)
+# Boost is resolved in src/CMakeLists.txt with a system-first and local-fallback strategy.
 
 option(ENABLE_GCOV "Enable Gcov" OFF)
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
@@ -99,6 +80,21 @@ add_library(hts SHARED IMPORTED)
 set_target_properties(hts PROPERTIES IMPORTED_LOCATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libhts.so.3)
 
 add_subdirectory(src)
+set(ROVACA_LIBDEFLATE_INSTALL_PATH "")
+set(ROVACA_LIBDEFLATE_CANDIDATES
+    "/usr/local/lib/libdeflate.so.0"
+    "/lib/x86_64-linux-gnu/libdeflate.so.0"
+    "${CMAKE_SOURCE_DIR}/libdeflate.so.0")
+foreach(ROVACA_LIBDEFLATE_CANDIDATE IN LISTS ROVACA_LIBDEFLATE_CANDIDATES)
+    if(EXISTS "${ROVACA_LIBDEFLATE_CANDIDATE}")
+        set(ROVACA_LIBDEFLATE_INSTALL_PATH "${ROVACA_LIBDEFLATE_CANDIDATE}")
+        break()
+    endif()
+endforeach()
 
-install(FILES "${LIBDEFLATE}" DESTINATION lib)
+if(ROVACA_LIBDEFLATE_INSTALL_PATH)
+    install(FILES "${ROVACA_LIBDEFLATE_INSTALL_PATH}" DESTINATION lib)
+else()
+    message(FATAL_ERROR "libdeflate.so.0 not found in system paths or source directory")
+endif()
 install(FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libhts.so.3 DESTINATION lib)

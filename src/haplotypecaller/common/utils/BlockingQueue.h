@@ -26,7 +26,7 @@ public:
     T pop(uint32_t sec)
     {
         T value = nullptr;
-        std::chrono::seconds tt{sec};
+        std::chrono::milliseconds tt{sec};
         std::unique_lock<std::mutex> lock(m_mutex_);
         if (m_empty_condition_.wait_for(lock, tt, [&]() { return !m_queue_.empty(); })) {
             value = m_queue_.front();

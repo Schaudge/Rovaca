@@ -1,8 +1,7 @@
-#include "ActiveMainThread.h"
-
 #include <algorithm>
 #include <memory_resource>
 
+#include "ActiveMainThread.h"
 #include "HcActiveBase.h"
 #include "rovaca_logger.h"
 
@@ -25,14 +24,22 @@ void ActiveMainThreadDispatchTasks::run()
         finish = fetch_block_reads();
 
         bool ret = split_reads(current_tid, start, end, actual_start, actual_end, cover_reads);
-        finish &= (!m_block_resource->m_reads_buffer.empty() &&
-                   (m_block_resource->m_reads_buffer.back().tid < current_tid ||
-                    (m_block_resource->m_reads_buffer.back().tid == current_tid && m_block_resource->m_reads_buffer.back().end < end)));
-
         if (!ret) break;
         std::shared_ptr<char> ref_base = m_fasta_loader->get(current_tid, ref_len);
         std::shared_ptr<ActiveBaseResource> resource = m_base_resource->pop();
         get_target_biset(current_tid, actual_start, actual_end, resource->target, resource->m_target);
+        {
+            std::lock_guard<std::mutex> lock(m_block_resource->m_mutex);
+            if (m_block_resource->m_reads_buffer.empty()) {
+                finish = true;
+            }
+            else {
+                finish &=
+                    (!m_block_resource->m_reads_buffer.empty() &&
+                     (m_block_resource->m_reads_buffer.back().tid < current_tid ||
+                      (m_block_resource->m_reads_buffer.back().tid == current_tid && m_block_resource->m_reads_buffer.back().end < end)));
+            }
+        }
         // std::cerr << "start pool work id " << work_id << "tid:" << current_tid << "real:" << start << "-" << end
         //           << "actual:" << actual_start << "-" << actual_end << "m_bit:" << actual_end - actual_start << std::endl;
         max_size = std::max(max_size, (int)(actual_end - actual_start));
@@ -52,7 +59,7 @@ void ActiveMainThreadDispatchTasks::run()
         });
         work_id++;
     }
-    RovacaLogger::info("region over. dispatch finish max size: {} last tid {}", max_size, current_tid);
+    RovacaLogger::info("All regions completed and dispatched. Max size upon dispatch completion: {} last tid {}", max_size, current_tid);
 }
 
 typedef void (*BamFunction)(bam1_t *);
@@ -376,7 +383,7 @@ void ActiveMainThreadReduce::run()
 bool ActiveMainThreadReduce::get_region_reads_block(rovaca::BamDataPool *pool, p_hc_region_active_storage region,
                                                     std::pmr::vector<bam1_t *> &reads)
 {
-    std::scoped_lock(m_block_resource->m_mutex);
+    std::scoped_lock lock(m_block_resource->m_mutex);
     for (BamBlockList &block : m_block_resource->m_reads_buffer) {
         if (block.tid < region->tid || (block.tid == region->tid && block.max_end < region->start_index - read_padded_span)) {
             // 直接删除逻辑

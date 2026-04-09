@@ -1,5 +1,3 @@
-#include "writer.h"
-
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -23,11 +21,13 @@
 #include "htslib/sam.h"
 #include "htslib/vcf.h"
 #include "rovaca_logger.h"
+#include "writer.h"
 
 namespace rovaca
 {
 
 #define BCF_CACHE_SIZE      (128 * 1024)
+#define BCF_MAX_COUNT       (128)
 #define ROVACA_HTS_CACHE_SIZE (64 * 1024 * 1024)
 #define RESULT_CACHE_COUNT  (128 * 1024 * 1024 / 8)
 
@@ -60,6 +60,7 @@ Writer::Writer(bool index, int32_t compression_level, pHCArgs args, bam_hdr_t *b
     , bam_hdr_{bam_hdr}
     , hts_pool_{tp}
     , result_queue_{result_queue}
+    , writetmp_{args->writetmp}
     , out_{}
     , last_id_back_{INVALID_INT}
     , merge_thread_{nullptr}
@@ -141,7 +142,7 @@ void Writer::stop()
         delete s;
     }
 
-    RovacaLogger::info("writer done");
+    RovacaLogger::info("File writing completed.");
 }
 
 void Writer::merge_task_thread_call()
@@ -154,6 +155,8 @@ void Writer::merge_task_thread_call()
     // 存储del后面特殊位点的cache
     ks_resize(&del_cache_, KS_CACHE_SIZE);
 
+    kstring_t merge_ks{0, 0, nullptr};
+
     ret = bcf_hdr_write(out_.out_file, out_.hdr);
     CHECK_CONDITION_EXIT(ret != 0, "write header: {}", std::strerror(errno));
 
@@ -164,12 +167,14 @@ void Writer::merge_task_thread_call()
 
     std::vector<pWriterTask> discontinuous_result{RESULT_CACHE_COUNT, nullptr};
 
+    size_t cache_task_count = 0;
     while (expected_id != last_id_back_) {
         task = result_queue_->pop(1);
         if (nullptr == task) {
             continue;
         }
-
+        cache_task_count++;
+        task->save_file = false;
         if (task->source_id == expected_id) {
             if (nullptr != task->cache) {
                 if (task->cache->l > 0) {
@@ -181,6 +186,23 @@ void Writer::merge_task_thread_call()
             ++expected_id;
         }
         else {
+            if (cache_task_count > BCF_MAX_COUNT && writetmp_) {
+                // Save to file
+                std::string tmp_name = std::string(args_->output) + "." + std::to_string(task->source_id);
+                std::ofstream tmp_file(tmp_name);
+                if (tmp_file.is_open()) {
+                    tmp_file.write(task->cache->s, task->cache->l);
+                    tmp_file.close();
+                }
+                else {
+                    RovacaLogger::error("Can't write {} to disk.", tmp_name);
+                }
+                task->save_file = true;
+                task->word_number = task->cache->l;
+                cache_task_count--;
+                push_bcf_cache(task->cache);
+                task->cache = nullptr;
+            }
             discontinuous_result[task->source_id] = task;
         }
 
@@ -191,12 +213,32 @@ void Writer::merge_task_thread_call()
                 }
                 push_bcf_cache(task->cache);
             }
+            else if (task->save_file) {
+                ks_resize(&merge_ks, task->word_number + 1);
+                std::string tmp_name = std::string(args_->output) + "." + std::to_string(task->source_id);
+                std::ifstream tmp_file(tmp_name);
+                if (tmp_file.is_open()) {
+                    tmp_file.read(merge_ks.s, task->word_number);
+                    merge_ks.s[task->word_number] = '\0';
+                    merge_ks.l = task->word_number;
+                    task->cache = &merge_ks;
+                    resolve_overrides_and_write_task(task);
+                    tmp_file.close();
+                    std::remove(tmp_name.c_str());
+                }
+                else {
+                    RovacaLogger::error("Can't read {} from disk.", tmp_name);
+                }
+                ks_clear(&merge_ks);
+            }
             delete task;
             expected_id++;
+            cache_task_count--;
         }
     }
 
     ks_free(&del_cache_);
+    ks_free(&merge_ks);
 
     if (!args_->idx_name.empty()) {
         ret = bcf_idx_save(out_.out_file);
@@ -415,7 +457,7 @@ void Writer::resolve_overrides_and_write_task(pWriterTask task)
 
                 ret = bgzf_idx_push(out_.out_file->fp.bgzf, out_.out_file->idx, btid, start - 1, stop - 1,
                                     bgzf_tell(out_.out_file->fp.bgzf), 1);
-                
+
                 CHECK_CONDITION_EXIT(ret != 0, "error: hts_idx_push");
             }
 
@@ -457,7 +499,7 @@ std::string Writer::generate_command_line(const char *tool_name, const char *com
     CHECK_CONDITION_EXIT(nullptr == tool_name, "args->tool_name is nullptr");
     CHECK_CONDITION_EXIT(nullptr == command_line, "args->command_line is empty");
     std::ostringstream oss;
-    oss << "##LUSHCommandLine=<ID=" << std::string(tool_name) << ",CommandLine=\"" << std::string(command_line) << "\">";
+    oss << "##ROVACACommandLine=<ID=" << std::string(tool_name) << ",CommandLine=\"" << std::string(command_line) << "\">";
     return oss.str();
 }
 
@@ -489,7 +531,7 @@ bcf_hdr_t *Writer::init_vcf_header(pHCArgs args, bam_hdr_t *bam_hdr)
 
     std::string command_line = generate_command_line(args->tool_name, args->command_line.c_str());
     ret = bcf_hdr_append(hdr, command_line.c_str());
-    CHECK_CONDITION_EXIT(ret != 0, "bcf_hdr_append: LUSHCommandLine=%s", command_line.c_str());
+    CHECK_CONDITION_EXIT(ret != 0, "bcf_hdr_append: ROVACACommandLine=%s", command_line.c_str());
 
     // clang-format off
     ret = bcf_hdr_append(hdr, "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes, for each ALT allele, in the same order as listed\">");
@@ -574,7 +616,7 @@ bcf_hdr_t *Writer::init_gvcf_header(pHCArgs args, bam_hdr_t *bam_hdr)
 
     std::string command_line = generate_command_line(args->tool_name, args->command_line.c_str());
     ret = bcf_hdr_append(hdr, command_line.c_str());
-    CHECK_CONDITION_EXIT(ret != 0, "bcf_hdr_append: LUSHCommandLine=%s", command_line.c_str());
+    CHECK_CONDITION_EXIT(ret != 0, "bcf_hdr_append: ROVACACommandLine=%s", command_line.c_str());
 
     generate_gvcf_block(hdr, args);
 

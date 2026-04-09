@@ -85,7 +85,7 @@ struct ActiveRegionBamBlockListSource
             bam_destroy1(reads.bam);
             num_reads++;
         }
-        RovacaLogger::info("read number = {}, cap size = {}", num_reads, cap_size);
+        RovacaLogger::info("Read number = {}, cap size = {}", num_reads, cap_size);
     }
 
     RegionReadRecord &get_back_bam()

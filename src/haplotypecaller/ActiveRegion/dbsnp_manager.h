@@ -5,9 +5,12 @@
 #include <memory>
 #include <mutex>
 
-#include "vcf_loader.h"
+#include "../../IOStream/vcf_loader.h"
 
 class BedLoader;
+struct RegionResult;
+
+enum class DbsnpManagerType { PREFETCH, NON_PREFETCH };
 
 class DbsnpManager
 {
@@ -19,6 +22,7 @@ private:
     VcfLoader vcf_loader_;
     contig_info_t *contig_info_;
     std::map<int32_t, std::shared_ptr<std::vector<bcf1_t *>>> vcf_;
+    DbsnpManagerType type_;
 
     std::mutex mutex_;
     std::condition_variable not_full_;
@@ -33,6 +37,7 @@ public:
         , vcf_loader_{}
         , contig_info_{nullptr}
         , vcf_{}
+        , type_{DbsnpManagerType::NON_PREFETCH}
         , mutex_{}
         , not_full_{}
         , has_data_{}
@@ -46,9 +51,11 @@ public:
     /// @param ci ReferenceManager中的contig_info_t，与region相同的顺序获取vcf
     /// @param tp 公用线程池，用于vcf文件读取
     /// @param prefetch run函数提前读取的染色体数量
-    void initialization(const std::string &vcf_file, BedLoader *bl, contig_info_t *ci, htsThreadPool *tp, int32_t prefetch);
+    void initialization(const std::string &vcf_file, BedLoader *bl, contig_info_t *ci, htsThreadPool *tp, int32_t prefetch,
+                        DbsnpManagerType type = DbsnpManagerType::NON_PREFETCH);
 
-    /// @brief 资源释放，work结束后调用，否则会提前释放资源，调用此函数时，理论上所有发出的bcf1_t*都应该返回
+    /// @brief
+    /// 资源释放，work结束后调用，否则会提前释放资源，调用此函数时，理论上所有发出的bcf1_t*都应该返回
     void terminalization();
 
     /// @brief 单独线程运行，持续读取直到
@@ -58,6 +65,8 @@ public:
     /// @param tid
     /// @return
     std::shared_ptr<std::vector<bcf1_t *>> get(int32_t tid);
+
+    std::shared_ptr<std::vector<bcf1_t *>> get(const std::vector<RegionResult> &result);
 
     /// @brief region携带shared_ptr发出数据，此处的备份可以删除
     /// @param tid

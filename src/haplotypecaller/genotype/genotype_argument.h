@@ -49,6 +49,7 @@ public:  // 需要初始化的参数
     std::string command_line;
     std::vector<int32_t> gvcf_gq_bands;
     ReferenceConfidenceMode reference_confidence_mode{ReferenceConfidenceMode::NONE};
+    bool writetmp{false};
 
     /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 public:                                      // 依赖参数，依赖其他参数

@@ -41,6 +41,7 @@ struct HCHistStorage
     }
     void insert(HCActiveBaseStatus status, uint8_t qual)
     {
+        if (__glibc_unlikely(qual >= HCBASEMAXQUAL)) qual = HCBASEMAXQUAL - 1;
         hist_count[status][qual]++;
         if (__glibc_unlikely(qual < min_idx[status])) min_idx[status] = qual;
         if (__glibc_unlikely(qual > max_idx[status])) max_idx[status] = qual;

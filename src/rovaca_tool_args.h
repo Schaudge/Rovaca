@@ -106,6 +106,8 @@ public:
     bool old_pairhmm_engine() const { return old_pairhmm_engine_; }
     int32_t compression_level() const { return compression_level_; };
     const std::string& dbsnp_path() const { return dnsnp_file_; }
+    int32_t dbsnp_prefetch_size() const { return dbsnp_prefetch_size_; }
+    bool writetmp() const { return writetmp_; }
 
 private:
     po::variables_map vm_;
@@ -133,7 +135,10 @@ private:
     bool old_pairhmm_engine_;
     int32_t compression_level_;
     std::string dnsnp_file_;
+    int32_t dbsnp_prefetch_size_;
+    bool writetmp_;
 
+    static constexpr const int32_t DEFAULT_DBSNP_PREFETCH_SIZE = 10;
     static constexpr const int32_t DEFAULT_MAX_READS_DEPTH = 50;
     static constexpr const int32_t DEFAULT_RUNPOOL_SIZE = 30;
     static constexpr const int32_t DEFAULT_INTERVAL_PADDING = 0;
@@ -172,6 +177,8 @@ private:
     static constexpr const char* COMPRESSION_LEVEL = "compression-level";
     static constexpr const char* BQSR_RECAL_TABLE = "bqsr-recal-table";
     static constexpr const char* DBSNP = "dbsnp";
+    static constexpr const char* DBSNP_PREFETCH_SIZE = "dbsnp-prefetch-size";
+    static constexpr const char* WRITE_TMP = "write-tmp";
 };
 
 // clang-format off
@@ -253,7 +260,7 @@ void RovacaToolArgs::usage()
     std::cout << std::endl;
     std::cout << "Usage: rovaca <tool> [-option]" << std::endl;
     std::cout << "Required:" << std::endl;
-    std::cout << "  -I, --input <file1> <file2> ...             input file paths" << std::endl;
+    std::cout << "  -I, --input <file>                          input file path" << std::endl;
     std::cout << "  -O, --output <file>                         output file path" << std::endl;
     std::cout << "  -R, --reference <file>                      reference file path" << std::endl;
     std::cout << "Options:" << std::endl;

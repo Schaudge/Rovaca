@@ -9,6 +9,7 @@
 #include "avx512-functions.h"
 #include "hc_marco.h"
 #include "smithwaterman_common.h"
+#include "../ro_sw/ro_sw.h"
 
 static sw_parameters sw_parameters_assemble = {200, -150, -260, -11};
 static sw_parameters sw_parameters_genotype = {10, -15, -30, -5};
@@ -376,7 +377,7 @@ static inline int sw_avx_is_avx512_supported(void)
     uint32_t avx512_skx_mask = (1 << 16) |  // AVX-512F
                                (1 << 17) |  // AVX-512DQ
                                (1 << 30) |  // AVX-512BW
-                               (1 << 31);   // AVX-512VL
+                               (1U << 31);   // AVX-512VL
 
     // step 1 - must ensure OS supports extended processor state management
     sw_avx_cpuid_count(1, 0, a, b, c, d);
@@ -440,10 +441,10 @@ p_lib_sw_avx sw_avx_init(uint8_t is_assemble)
     }
 
     if (sw_avx_is_avx512_supported()) {
-        ret->avx_function = sw_avx512_run;
+        ret->avx_function = ro_sw_avx512_run;
     }
     else {
-        ret->avx_function = sw_avx2_run;
+        ret->avx_function = ro_sw_avx2_run;
     }
 
     return ret;

@@ -19,9 +19,6 @@ void BedLoader::load_all_bed_intervals(const std::string &path, const int paddin
     all_padded_intervals_ = init_bed_intervals();
 
     while (std::getline(ifs, line)) {
-        if (line.front() != 'c') {
-            continue;
-        }
         sscanf(line.c_str(), "%s\t%ld\t%ld", contig_cache, &bed_start, &bed_end);
         std::string contig = std::string(contig_cache);
 

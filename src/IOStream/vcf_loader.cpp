@@ -1,6 +1,5 @@
-#include "vcf_loader.h"
-
 #include "../rovaca_logger/rovaca_logger.h"
+#include "vcf_loader.h"
 
 constexpr uint32_t s_init_capacity = 1000;
 
@@ -62,7 +61,7 @@ void VcfLoader::initialization(const std::string& vcf_db, htsThreadPool* tp, con
         exit(-1);
     }
 
-    hts_set_thread_pool(fd_, tp);
+    // hts_set_thread_pool(fd_, tp);
 
     hdr_ = bcf_hdr_read(fd_);
     if (nullptr == hdr_) {
@@ -122,7 +121,7 @@ std::vector<bcf1_t*> VcfLoader::load_vcf(const char* chr, p_bed_intervals bed)
     for (int i{0}; i < (nullptr == bed ? 1 : bed->n); ++i) {
         itr = (nullptr == bed ? tbx_itr_querys(tbx_, chr) : tbx_itr_queryi(tbx_, bcf_hdr_name2id(hdr_, chr), bed->start[i], bed->end[i]));
         if (nullptr == itr) {
-            RovacaLogger::error("query dbsnp error: {}", chr);
+            RovacaLogger::error("query dbsnp error: {}th {}:{}-{}", i, chr, bed->start[i], bed->start[0]);
             exit(-1);
         }
 

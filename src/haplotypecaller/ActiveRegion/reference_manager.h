@@ -1,10 +1,11 @@
 #ifndef __REFERENCE_MANAGER_H
 #define __REFERENCE_MANAGER_H
+#include <atomic>
 #include <condition_variable>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #include "bed_loader.h"
 #include "fasta_loader.h"
@@ -25,6 +26,7 @@ public:
         , last_tid(0)
     {
         FastaLoader::get_fasta_dict(reference, &contig);
+        ref_vec.resize(contig.key.size());
     }
 
     ReferenceManager(const std::string &reference, int num)
@@ -53,9 +55,10 @@ private:
     FastaLoader fasta_loader;
     BedLoader *bed_loader;
     size_t prefetch_number;
-    std::map<int, std::shared_ptr<char>> ref_map;
-    int current_tid;
+    std::vector<std::shared_ptr<char>> ref_vec;
+    std::atomic<int> current_tid;
     int last_tid;
+    int loaded_count{0};
     contig_info_t contig;
     std::condition_variable m_not_full_condition_;
     std::condition_variable m_new_comming_condition_;

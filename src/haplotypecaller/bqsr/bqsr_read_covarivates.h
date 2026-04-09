@@ -8,8 +8,6 @@
 #include <string>
 #include <vector>
 
-#include <stdexcept>
-
 #include "apply_bqsr_utils.h"
 struct ReadCovariates
 {

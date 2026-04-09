@@ -5,7 +5,7 @@
  * @version 0.1
  * @date 2022-07-13
  *
- * @copyright Copyright (c) 2022 ROVACA SDK
+ * @copyright Copyright (c) 2022 Rovaca SDK
  *
  */
 
