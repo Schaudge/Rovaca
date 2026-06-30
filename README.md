@@ -82,12 +82,6 @@ rovaca HaplotypeCaller -I sample.bam -O output.vcf -R reference.fasta -P 100 --n
 rovaca HaplotypeCaller -I sample.bam -O output.g.vcf -R reference.fasta --emit-ref-confidence GVCF
 ```
 
-## Citation
-
-Rovaca: A highly optimized variant caller for rapid and robust germline DNA analysis
-Qiwen Zheng, Longhui Yin
-bioRxiv 2025.10.19.677660; doi: [10.1101/2025.10.19.677660](https://doi.org/10.1101/2025.10.19.677660)
-
 ## Additional Information
 
 For further details and updates, please refer to the official documentation or reach out to the development team.
